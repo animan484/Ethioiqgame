@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>IQ Slide - Telegram Mini App</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Telegram WebApp SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            gold: '#F7C948',
+                            goldDark: '#D69E2E',
+                            cyan: '#00F2FE',
+                            purple: '#7928CA',
+                            darkBg: '#0D0E12',
+                            cardBg: '#16181E',
+                            border: '#262932'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+            background-color: #0D0E12;
+            color: #FFFFFF;
+        }
+        .glow-gold {
+            box-shadow: 0 0 20px rgba(247, 201, 72, 0.25);
+        }
+        .glow-cyan {
+            box-shadow: 0 0 15px rgba(0, 242, 254, 0.2);
+        }
+        .tile-transition {
+            transition: all 0.18s cubic-bezier(0.2, 0.9, 0.3, 1);
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="font-sans antialiased h-screen flex flex-col justify-between overflow-hidden bg-brand-darkBg text-white">
+
+    <!-- TOP HEADER -->
+    <header class="pt-4 px-4 pb-2 flex justify-between items-center border-b border-brand-border/40 bg-brand-cardBg/50 backdrop-blur-md">
+        <div class="flex items-center gap-3">
+            <div id="userAvatar" class="w-10 h-10 rounded-full bg-gradient-to-tr from-brand-gold to-yellow-600 flex items-center justify-center text-brand-darkBg font-bold text-lg shadow-md border border-brand-gold/30">
+                U
+            </div>
+            <div>
+                <h1 id="userName" class="font-bold text-sm tracking-wide leading-tight text-gray-100">Loading...</h1>
+                <div class="flex items-center gap-1">
+                    <i class="fa-solid fa-coins text-brand-gold text-xs"></i>
+                    <span id="userCoins" class="text-xs font-semibold text-brand-gold">1,250 IQ</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-2">
+            <button onclick="openGridModal()" class="bg-brand-cardBg border border-brand-border px-3 py-1.5 rounded-xl text-xs font-bold text-gray-300 hover:text-white hover:border-brand-gold/50 active:scale-95 transition flex items-center gap-1.5">
+                <span id="gridModeLabel">3x3 Easy</span>
+                <i class="fa-solid fa-chevron-down text-[10px] text-gray-400"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT CONTAINERS (TABS) -->
+    <main class="flex-1 overflow-y-auto no-scrollbar p-4 flex flex-col items-center justify-start max-w-md w-full mx-auto">
+        
+        <!-- ==================== TAB 1: GAME ==================== -->
+        <section id="tab-game" class="w-full flex flex-col items-center justify-center flex-1">
+            
+            <!-- Game Stats Bar -->
+            <div class="w-full flex justify-between items-center mb-4 px-2">
+                <div class="bg-brand-cardBg border border-brand-border rounded-xl px-4 py-2 flex items-center gap-2 shadow-inner">
+                    <i class="fa-solid fa-stopwatch text-brand-cyan text-sm"></i>
+                    <div class="text-left">
+                        <p class="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Time</p>
+                        <p id="timer" class="text-sm font-bold font-mono text-gray-100">00:00</p>
+                    </div>
+                </div>
+
+                <div class="bg-brand-cardBg border border-brand-border rounded-xl px-4 py-2 flex items-center gap-2 shadow-inner">
+                    <i class="fa-solid fa-shoe-prints text-purple-400 text-sm"></i>
+                    <div class="text-left">
+                        <p class="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Moves</p>
+                        <p id="moveCounter" class="text-sm font-bold font-mono text-gray-100">0</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Puzzle Target Goal Preview -->
+            <div class="w-full bg-brand-cardBg/60 border border-brand-border/80 rounded-xl p-2.5 mb-4 flex justify-between items-center text-xs">
+                <span class="text-gray-400">Target Order:</span>
+                <span id="targetOrderText" class="font-bold text-brand-gold tracking-widest font-mono">A B C D E F G H [_]</span>
+            </div>
+
+            <!-- GAME BOARD CONTAINER -->
+            <div id="boardOuter" class="w-full aspect-square bg-brand-cardBg border-2 border-brand-border p-3 rounded-3xl shadow-2xl relative flex items-center justify-center glow-cyan">
+                <!-- Tiles will be rendered dynamically here -->
+                <div id="puzzleBoard" class="w-full h-full grid gap-2 relative"></div>
+            </div>
+
+            <!-- ACTION BUTTONS -->
+            <div class="w-full grid grid-cols-2 gap-3 mt-5">
+                <button onclick="shuffleBoard()" class="w-full bg-gradient-to-r from-gray-800 to-gray-700 hover:from-gray-700 hover:to-gray-600 border border-gray-600 text-white font-bold py-3 rounded-2xl active:scale-95 transition flex items-center justify-center gap-2 shadow-lg">
+                    <i class="fa-solid fa-shuffle text-sm"></i>
+                    <span>Restart</span>
+                </button>
+
+                <button onclick="triggerRewardedAdForHint()" class="w-full bg-gradient-to-r from-brand-gold to-brand-goldDark text-brand-darkBg font-extrabold py-3 rounded-2xl active:scale-95 transition flex items-center justify-center gap-2 shadow-lg glow-gold">
+                    <i class="fa-solid fa-lightbulb text-sm"></i>
+                    <span>Get Hint (Ad)</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- ==================== TAB 2: EARN / TASKS ==================== -->
+        <section id="tab-tasks" class="w-full hidden flex-col items-center">
+            <div class="text-center my-4">
+                <div class="w-16 h-16 bg-brand-gold/10 border border-brand-gold/30 rounded-full flex items-center justify-center mx-auto mb-2 text-brand-gold text-2xl glow-gold">
+                    <i class="fa-solid fa-list-check"></i>
+                </div>
+                <h2 class="text-xl font-extrabold">Earn Extra IQ Coins</h2>
+                <p class="text-xs text-gray-400 mt-1">Complete simple tasks to boost your ranking</p>
+            </div>
+
+            <div class="w-full space-y-3 mt-2">
+                <!-- Task item 1 -->
+                <div class="bg-brand-cardBg border border-brand-border rounded-2xl p-4 flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400 text-lg">
+                            <i class="fa-brands fa-telegram"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-bold">Join Telegram Channel</h3>
+                            <p class="text-xs text-brand-gold font-semibold">+500 IQ</p>
+                        </div>
+                    </div>
+                    <button onclick="completeTask(this, 500)" class="bg-brand-gold hover:bg-brand-goldDark text-brand-darkBg font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition">
+                        Claim
+                    </button>
+                </div>
+
+                <!-- Task item 2 -->
+                <div class="bg-brand-cardBg border border-brand-border rounded-2xl p-4 flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400 text-lg">
+                            <i class="fa-solid fa-circle-play"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-bold">Watch Sponsor Video</h3>
+                            <p class="text-xs text-brand-gold font-semibold">+250 IQ</p>
+                        </div>
+                    </div>
+                    <button onclick="triggerRewardedAdForTask(this, 250)" class="bg-brand-gold hover:bg-brand-goldDark text-brand-darkBg font-bold px-4 py-2 rounded-xl text-xs active:scale-95 transition">
+                        Watch
+                    </button>
+                </div>
+
+                <!-- Task item 3 -->
+                <div class="bg-brand-cardBg border border-brand-border rounded-2xl p-4 flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-lg">
+                            <i class="fa-solid fa-puzzle-piece"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-bold">Solve 3 Puzzles Today</h3>
+                            <p class="text-xs text-brand-gold font-semibold">+1,000 IQ</p>
+                        </div>
+                    </div>
+                    <button id="solveTaskBtn" disabled class="bg-gray-700 text-gray-400 font-bold px-4 py-2 rounded-xl text-xs cursor-not-allowed">
+                        0/3
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== TAB 3: INVITE ==================== -->
+        <section id="tab-invite" class="w-full hidden flex-col items-center">
+            <div class="text-center my-4">
+                <div class="w-16 h-16 bg-brand-cyan/10 border border-brand-cyan/30 rounded-full flex items-center justify-center mx-auto mb-2 text-brand-cyan text-2xl glow-cyan">
+                    <i class="fa-solid fa-users"></i>
+                </div>
+                <h2 class="text-xl font-extrabold">Invite Friends</h2>
+                <p class="text-xs text-gray-400 mt-1">You and your friend will receive bonus IQ coins!</p>
+            </div>
+
+            <!-- Referral Bonus Card -->
+            <div class="w-full bg-gradient-to-r from-purple-900/40 to-brand-cardBg border border-purple-500/30 rounded-2xl p-4 mb-4 flex items-center gap-4">
+                <i class="fa-solid fa-gift text-3xl text-brand-gold"></i>
+                <div>
+                    <h3 class="text-sm font-bold text-white">Invite a friend</h3>
+                    <p class="text-xs text-gray-300"><span class="text-brand-gold font-bold">+2,500 IQ</span> for you and your friend</p>
+                </div>
+            </div>
+
+            <!-- Link Box -->
+            <div class="w-full bg-brand-cardBg border border-brand-border rounded-2xl p-3 flex items-center justify-between gap-2 mb-4">
+                <input id="refLinkInput" type="text" readonly value="https://t.me/IQ_Slide_Bot?start=ref_123456" class="bg-transparent text-xs text-gray-300 w-full focus:outline-none font-mono">
+                <button onclick="copyInviteLink()" class="bg-brand-cyan/20 border border-brand-cyan/50 text-brand-cyan font-bold px-3 py-1.5 rounded-xl text-xs active:scale-95 transition flex items-center gap-1 shrink-0">
+                    <i class="fa-solid fa-copy"></i>
+                    <span>Copy</span>
+                </button>
+            </div>
+
+            <button onclick="shareInviteLink()" class="w-full bg-gradient-to-r from-brand-gold to-brand-goldDark text-brand-darkBg font-extrabold py-3.5 rounded-2xl active:scale-95 transition shadow-lg glow-gold flex items-center justify-center gap-2">
+                <i class="fa-solid fa-paper-plane"></i>
+                <span>Send to Telegram Friends</span>
+            </button>
+        </section>
+
+        <!-- ==================== TAB 4: LEADERBOARD ==================== -->
+        <section id="tab-leaderboard" class="w-full hidden flex-col items-center">
+            <div class="text-center my-4">
+                <div class="w-16 h-16 bg-yellow-500/10 border border-yellow-500/30 rounded-full flex items-center justify-center mx-auto mb-2 text-brand-gold text-2xl glow-gold">
+                    <i class="fa-solid fa-trophy"></i>
+                </div>
+                <h2 class="text-xl font-extrabold">Global Leaderboard</h2>
+                <p class="text-xs text-gray-400 mt-1">Real-time ranks based on IQ score</p>
+            </div>
+
+            <div id="leaderboardList" class="w-full space-y-2.5">
+                <!-- Dynamic Ranks Rendered Here -->
+            </div>
+        </section>
+
+    </main>
+
+    <!-- BOTTOM NAVIGATION BAR -->
+    <nav class="w-full bg-brand-cardBg/90 backdrop-blur-lg border-t border-brand-border py-2 px-6 flex justify-between items-center z-40">
+        <button id="nav-game" onclick="switchTab('game')" class="flex flex-col items-center gap-1 text-brand-gold transition active:scale-95">
+            <i class="fa-solid fa-gamepad text-lg"></i>
+            <span class="text-[10px] font-bold">Game</span>
+        </button>
+
+        <button id="nav-tasks" onclick="switchTab('tasks')" class="flex flex-col items-center gap-1 text-gray-400 hover:text-white transition active:scale-95">
+            <i class="fa-solid fa-[#00F2FE] fa-list-check text-lg"></i>
+            <span class="text-[10px] font-bold">Earn</span>
+        </button>
+
+        <button id="nav-invite" onclick="switchTab('invite')" class="flex flex-col items-center gap-1 text-gray-400 hover:text-white transition active:scale-95">
+            <i class="fa-solid fa-user-plus text-lg"></i>
+            <span class="text-[10px] font-bold">Friends</span>
+        </button>
+
+        <button id="nav-leaderboard" onclick="switchTab('leaderboard')" class="flex flex-col items-center gap-1 text-gray-400 hover:text-white transition active:scale-95">
+            <i class="fa-solid fa-trophy text-lg"></i>
+            <span class="text-[10px] font-bold">Ranks</span>
+        </button>
+    </nav>
+
+    <!-- GRID SELECTOR MODAL -->
+    <div id="gridModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 hidden flex-col items-center justify-center p-6 text-center">
+        <div class="bg-brand-cardBg border border-brand-border rounded-3xl p-6 max-w-xs w-full flex flex-col items-center shadow-2xl">
+            <h3 class="text-base font-bold mb-4">Select Difficulty Level</h3>
+            <div class="w-full space-y-2.5">
+                <button onclick="setGridSize(3)" class="w-full bg-brand-darkBg hover:bg-gray-800 border border-brand-border p-3 rounded-2xl font-bold text-sm flex justify-between items-center active:scale-95 transition">
+                    <span>3x3 (Easy)</span>
+                    <span class="text-xs text-brand-gold font-mono">A-H</span>
+                </button>
+                <button onclick="setGridSize(4)" class="w-full bg-brand-darkBg hover:bg-gray-800 border border-brand-border p-3 rounded-2xl font-bold text-sm flex justify-between items-center active:scale-95 transition">
+                    <span>4x4 (Medium)</span>
+                    <span class="text-xs text-brand-gold font-mono">A-O</span>
+                </button>
+                <button onclick="setGridSize(5)" class="w-full bg-brand-darkBg hover:bg-gray-800 border border-brand-border p-3 rounded-2xl font-bold text-sm flex justify-between items-center active:scale-95 transition">
+                    <span>5x5 (Hard)</span>
+                    <span class="text-xs text-brand-gold font-mono">A-X</span>
+                </button>
+                <button onclick="setGridSize(6)" class="w-full bg-brand-darkBg hover:bg-gray-800 border border-brand-border p-3 rounded-2xl font-bold text-sm flex justify-between items-center active:scale-95 transition">
+                    <span>6x6 (Expert)</span>
+                    <span class="text-xs text-brand-gold font-mono">1-35</span>
+                </button>
+            </div>
+            <button onclick="closeGridModal()" class="mt-4 text-xs text-gray-400 font-semibold hover:text-white">Cancel</button>
+        </div>
+    </div>
+
+    <!-- REWARDED ADS SIMULATION MODAL -->
+    <div id="adModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 hidden flex-col items-center justify-center p-6 text-center">
+        <div class="bg-brand-cardBg border border-brand-border rounded-3xl p-6 max-w-xs w-full flex flex-col items-center shadow-2xl">
+            <div class="w-12 h-12 rounded-full bg-brand-gold/20 text-brand-gold flex items-center justify-center text-xl mb-3 animate-bounce">
+                <i class="fa-solid fa-rectangle-ad"></i>
+            </div>
+            <h3 class="text-base font-bold mb-1">Watching Sponsored Ad</h3>
+            <p class="text-xs text-gray-400 mb-4">Please wait while the ad finishes...</p>
+            
+            <div class="w-full bg-gray-800 rounded-full h-2 mb-4 overflow-hidden border border-gray-700">
+                <div id="adProgressBar" class="bg-brand-gold h-full w-0 transition-all duration-300"></div>
+            </div>
+
+            <p id="adTimerText" class="text-xs font-mono font-bold text-brand-gold">3 seconds remaining</p>
+        </div>
+    </div>
+
+    <!-- WIN CONGRATULATIONS MODAL -->
+    <div id="winModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 hidden flex-col items-center justify-center p-6 text-center">
+        <div class="bg-brand-cardBg border-2 border-brand-gold rounded-3xl p-6 max-w-xs w-full flex flex-col items-center shadow-2xl glow-gold">
+            <div class="w-16 h-16 rounded-full bg-brand-gold/20 border border-brand-gold text-brand-gold flex items-center justify-center text-3xl mb-3 animate-pulse">
+                <i class="fa-solid fa-crown"></i>
+            </div>
+            <h2 class="text-xl font-extrabold text-white mb-1">Puzzle Solved!</h2>
+            <p class="text-xs text-gray-400 mb-4">Great job! You arranged all tiles correctly.</p>
+
+            <div class="w-full bg-brand-darkBg rounded-2xl p-3 mb-5 border border-brand-border space-y-1.5 text-xs">
+                <div class="flex justify-between"><span class="text-gray-400">Time Taken:</span><span id="winTime" class="font-bold font-mono">00:00</span></div>
+                <div class="flex justify-between"><span class="text-gray-400">Total Moves:</span><span id="winMoves" class="font-bold font-mono">0</span></div>
+                <div class="flex justify-between border-t border-brand-border pt-1.5"><span class="text-gray-400">Reward Earned:</span><span id="winReward" class="font-extrabold text-brand-gold">+300 IQ</span></div>
+            </div>
+
+            <button onclick="closeWinModal()" class="w-full bg-gradient-to-r from-brand-gold to-brand-goldDark text-brand-darkBg font-extrabold py-3 rounded-xl active:scale-95 transition shadow-lg">
+                Play Next Level
+            </button>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT GAME LOGIC -->
+    <script>
+        // --- Telegram WebApp Integration ---
+        const tg = window.Telegram ? window.Telegram.WebApp : null;
+        if (tg) {
+            tg.ready();
+            tg.expand();
+        }
+
+        // Haptic Feedback Helper
+        function triggerHaptic(type = 'light') {
+            if (tg && tg.HapticFeedback) {
+                tg.HapticFeedback.impactOccurred(type);
+            }
+        }
+
+        // --- Game State Variables ---
+        let gridSize = 3;
+        let tiles = [];
+        let emptyIndex = 8;
+        let moves = 0;
+        let timerInterval = null;
+        let secondsElapsed = 0;
+        let gameActive = false;
+        let userCoins = parseInt(localStorage.getItem('iq_user_coins')) || 1250;
+        let solvedPuzzlesCount = parseInt(localStorage.getItem('iq_solved_count')) || 0;
+        let userNameStr = "Anwar Player";
+
+        const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".split("");
+
+        // Initialize User Details from Telegram or Local Storage
+        function initUser() {
+            if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
+                const u = tg.initDataUnsafe.user;
+                userNameStr = (u.first_name + " " + (u.last_name || "")).trim();
+                document.getElementById('userName').innerText = userNameStr;
+                document.getElementById('userAvatar').innerText = u.first_name.charAt(0).toUpperCase();
+            } else {
+                document.getElementById('userName').innerText = userNameStr;
+                document.getElementById('userAvatar').innerText = "A";
+            }
+            document.getElementById('userCoins').innerText = `${userCoins.toLocaleString()} IQ`;
+            renderLeaderboard();
+        }
+
+        // Modal for Grid Selection
+        function openGridModal() {
+            triggerHaptic('light');
+            document.getElementById('gridModal').classList.remove('hidden');
+            document.getElementById('gridModal').classList.add('flex');
+        }
+
+        function closeGridModal() {
+            document.getElementById('gridModal').classList.add('hidden');
+            document.getElementById('gridModal').classList.remove('flex');
+        }
+
+        function setGridSize(size) {
+            gridSize = size;
+            const labels = { 3: '3x3 Easy', 4: '4x4 Medium', 5: '5x5 Hard', 6: '6x6 Expert' };
+            document.getElementById('gridModeLabel').innerText = labels[size];
+            closeGridModal();
+            initBoard();
+        }
+
+        // Switch Tabs
+        function switchTab(tabName) {
+            triggerHaptic('light');
+            ['game', 'tasks', 'invite', 'leaderboard'].forEach(t => {
+                document.getElementById(`tab-${t}`).classList.add('hidden');
+                document.getElementById(`tab-${t}`).classList.remove('flex');
+                
+                const navBtn = document.getElementById(`nav-${t}`);
+                navBtn.classList.remove('text-brand-gold');
+                navBtn.classList.add('text-gray-400');
+            });
+
+            document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+            document.getElementById(`tab-${tabName}`).classList.add('flex');
+            
+            const activeNavBtn = document.getElementById(`nav-${tabName}`);
+            activeNavBtn.classList.add('text-brand-gold');
+            activeNavBtn.classList.remove('text-gray-400');
+
+            if (tabName === 'leaderboard') renderLeaderboard();
+        }
+
+        // Update Target Text Display
+        function updateTargetText() {
+            const total = gridSize * gridSize - 1;
+            let targetArr = LETTERS.slice(0, total);
+            targetArr.push("[_]");
+            document.getElementById('targetOrderText').innerText = targetArr.join(" ");
+        }
+
+        // Initialize Board Logic
+        function initBoard() {
+            updateTargetText();
+            moves = 0;
+            secondsElapsed = 0;
+            gameActive = false;
+            clearInterval(timerInterval);
+            document.getElementById('moveCounter').innerText = "0";
+            document.getElementById('timer').innerText = "00:00";
+
+            const puzzleBoard = document.getElementById('puzzleBoard');
+            puzzleBoard.style.gridTemplateColumns = `repeat(${gridSize}, minmax(0, 1fr))`;
+            puzzleBoard.style.gridTemplateRows = `repeat(${gridSize}, minmax(0, 1fr))`;
+
+            tiles = generateSolvablePuzzle();
+            emptyIndex = tiles.indexOf(null);
+
+            renderBoard();
+        }
+
+        // Solvable Puzzle Generator
+        function generateSolvablePuzzle() {
+            const totalTiles = gridSize * gridSize;
+            let arr = [];
+            for (let i = 0; i < totalTiles - 1; i++) {
+                arr.push(LETTERS[i]);
+            }
+            arr.push(null);
+
+            do {
+                for (let i = arr.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [arr[i], arr[j]] = [arr[j], arr[i]];
+                }
+            } while (!isSolvable(arr) || isSolved(arr));
+
+            return arr;
+        }
+
+        function isSolvable(board) {
+            let inversions = 0;
+            const flatBoard = board.filter(item => item !== null);
+
+            for (let i = 0; i < flatBoard.length; i++) {
+                for (let j = i + 1; j < flatBoard.length; j++) {
+                    if (LETTERS.indexOf(flatBoard[i]) > LETTERS.indexOf(flatBoard[j])) {
+                        inversions++;
+                    }
+                }
+            }
+
+            if (gridSize % 2 !== 0) {
+                return inversions % 2 === 0;
+            } else {
+                const emptyRowFromBottom = gridSize - Math.floor(board.indexOf(null) / gridSize);
+                if (emptyRowFromBottom % 2 === 0) {
+                    return inversions % 2 !== 0;
+                } else {
+                    return inversions % 2 === 0;
+                }
+            }
+        }
+
+        // Render Tile DOM Elements
+        function renderBoard() {
+            const puzzleBoard = document.getElementById('puzzleBoard');
+            puzzleBoard.innerHTML = '';
+
+            const fontSizes = { 3: 'text-2xl', 4: 'text-xl', 5: 'text-base', 6: 'text-xs' };
+            const fontSize = fontSizes[gridSize] || 'text-sm';
+
+            tiles.forEach((letter, index) => {
+                const tileDiv = document.createElement('div');
+                
+                if (letter === null) {
+                    tileDiv.className = 'w-full h-full rounded-2xl bg-brand-darkBg/60 border border-brand-border/40';
+                } else {
+                    tileDiv.className = `w-full h-full rounded-2xl bg-gradient-to-b from-gray-800 to-brand-cardBg border-2 border-brand-border flex items-center justify-center font-extrabold ${fontSize} text-white shadow-md cursor-pointer hover:border-brand-gold/60 active:scale-95 tile-transition`;
+                    tileDiv.innerText = letter;
+                    tileDiv.onclick = () => handleTileClick(index);
+                }
+
+                tileDiv.id = `tile-${index}`;
+                puzzleBoard.appendChild(tileDiv);
+            });
+        }
+
+        // MULTI-TILE SLIDING LOGIC (Row & Column Batch Push)
+        function handleTileClick(index) {
+            const clickedRow = Math.floor(index / gridSize);
+            const clickedCol = index % gridSize;
+            const emptyRow = Math.floor(emptyIndex / gridSize);
+            const emptyCol = emptyIndex % gridSize;
+
+            // Only slide if in the same row or column as empty tile
+            if (clickedRow !== emptyRow && clickedCol !== emptyCol) return;
+
+            if (!gameActive) {
+                startTimer();
+                gameActive = true;
+            }
+
+            triggerHaptic('light');
+
+            let shiftIndices = [];
+
+            if (clickedRow === emptyRow) {
+                // Same Row Move
+                const step = clickedCol < emptyCol ? 1 : -1;
+                for (let c = emptyCol - step; c !== clickedCol - step; c -= step) {
+                    shiftIndices.push(clickedRow * gridSize + c);
+                }
+            } else if (clickedCol === emptyCol) {
+                // Same Column Move
+                const step = clickedRow < emptyRow ? 1 : -1;
+                for (let r = emptyRow - step; r !== clickedRow - step; r -= step) {
+                    shiftIndices.push(r * gridSize + clickedCol);
+                }
+            }
+
+            // Slide all tiles towards the empty space
+            let currentEmpty = emptyIndex;
+            for (let idx of shiftIndices) {
+                tiles[currentEmpty] = tiles[idx];
+                tiles[idx] = null;
+                currentEmpty = idx;
+            }
+            emptyIndex = currentEmpty;
+            moves++;
+            document.getElementById('moveCounter').innerText = moves;
+
+            renderBoard();
+
+            if (isSolved(tiles)) {
+                handleWin();
+            }
+        }
+
+        function startTimer() {
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                secondsElapsed++;
+                const mins = String(Math.floor(secondsElapsed / 60)).padStart(2, '0');
+                const secs = String(secondsElapsed % 60).padStart(2, '0');
+                document.getElementById('timer').innerText = `${mins}:${secs}`;
+            }, 1000);
+        }
+
+        function isSolved(board) {
+            const total = gridSize * gridSize - 1;
+            for (let i = 0; i < total; i++) {
+                if (board[i] !== LETTERS[i]) return false;
+            }
+            return board[total] === null;
+        }
+
+        // Real-Time Leaderboard Persistence
+        function renderLeaderboard() {
+            let defaultRanks = [
+                { name: "Alex_Pro", score: 48500, solved: 142 },
+                { name: "Sara_M", score: 36200, solved: 118 },
+                { name: "Kebede_IQ", score: 29100, solved: 95 }
+            ];
+
+            let allRanks = [...defaultRanks, { name: userNameStr, score: userCoins, solved: solvedPuzzlesCount }];
+            allRanks.sort((a, b) => b.score - a.score);
+
+            const container = document.getElementById('leaderboardList');
+            container.innerHTML = '';
+
+            allRanks.forEach((rank, i) => {
+                const isUser = rank.name === userNameStr;
+                const card = document.createElement('div');
+                card.className = `${isUser ? 'bg-gradient-to-r from-yellow-900/30 to-brand-cardBg border-brand-gold/40' : 'bg-brand-cardBg border-brand-border'} border rounded-2xl p-3 flex items-center justify-between`;
+                
+                card.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <span class="w-6 text-center font-extrabold ${i === 0 ? 'text-brand-gold' : 'text-gray-400'} text-sm">#${i + 1}</span>
+                        <div class="w-8 h-8 rounded-full ${isUser ? 'bg-brand-gold text-brand-darkBg' : 'bg-gray-700 text-white'} font-bold flex items-center justify-center text-xs">
+                            ${rank.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                            <p class="text-xs font-bold ${isUser ? 'text-brand-gold' : 'text-white'}">${rank.name} ${isUser ? '(You)' : ''}</p>
+                            <p class="text-[10px] text-gray-400">Solved ${rank.solved} puzzles</p>
+                        </div>
+                    </div>
+                    <span class="text-xs font-extrabold ${isUser ? 'text-brand-gold' : 'text-gray-200'}">${rank.score.toLocaleString()} IQ</span>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function handleWin() {
+            clearInterval(timerInterval);
+            gameActive = false;
+            triggerHaptic('heavy');
+
+            solvedPuzzlesCount++;
+            const reward = 200 + (gridSize * 50);
+            userCoins += reward;
+            
+            localStorage.setItem('iq_user_coins', userCoins);
+            localStorage.setItem('iq_solved_count', solvedPuzzlesCount);
+
+            document.getElementById('userCoins').innerText = `${userCoins.toLocaleString()} IQ`;
+            document.getElementById('winTime').innerText = document.getElementById('timer').innerText;
+            document.getElementById('winMoves').innerText = moves;
+            document.getElementById('winReward').innerText = `+${reward} IQ`;
+            document.getElementById('winModal').classList.remove('hidden');
+            document.getElementById('winModal').classList.add('flex');
+
+            renderLeaderboard();
+        }
+
+        function closeWinModal() {
+            document.getElementById('winModal').classList.add('hidden');
+            document.getElementById('winModal').classList.remove('flex');
+            initBoard();
+        }
+
+        function shuffleBoard() {
+            triggerHaptic('medium');
+            initBoard();
+        }
+
+        // Ads Simulation & Helpers
+        function triggerRewardedAdForHint() {
+            triggerHaptic('medium');
+            const modal = document.getElementById('adModal');
+            const bar = document.getElementById('adProgressBar');
+            const timerText = document.getElementById('adTimerText');
+            
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            bar.style.width = '0%';
+
+            let left = 3;
+            timerText.innerText = `${left} seconds remaining`;
+
+            const interval = setInterval(() => {
+                left--;
+                bar.style.width = `${((3 - left) / 3) * 100}%`;
+                if (left > 0) {
+                    timerText.innerText = `${left} seconds remaining`;
+                } else {
+                    clearInterval(interval);
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                    highlightHintMove();
+                }
+            }, 1000);
+        }
+
+        function highlightHintMove() {
+            const emptyRow = Math.floor(emptyIndex / gridSize);
+            const emptyCol = emptyIndex % gridSize;
+
+            for (let i = 0; i < gridSize * gridSize; i++) {
+                const r = Math.floor(i / gridSize);
+                const c = i % gridSize;
+                if ((r === emptyRow || c === emptyCol) && i !== emptyIndex) {
+                    const el = document.getElementById(`tile-${i}`);
+                    if (el) {
+                        el.classList.add('border-brand-gold', 'ring-4', 'ring-brand-gold/50');
+                        setTimeout(() => {
+                            el.classList.remove('border-brand-gold', 'ring-4', 'ring-brand-gold/50');
+                        }, 2000);
+                    }
+                    break;
+                }
+            }
+        }
+
+        function completeTask(btn, reward) {
+            triggerHaptic('heavy');
+            userCoins += reward;
+            localStorage.setItem('iq_user_coins', userCoins);
+            document.getElementById('userCoins').innerText = `${userCoins.toLocaleString()} IQ`;
+            btn.disabled = true;
+            btn.innerText = "Completed";
+            btn.className = "bg-gray-800 text-gray-500 font-bold px-4 py-2 rounded-xl text-xs cursor-not-allowed border border-gray-700";
+            renderLeaderboard();
+        }
+
+        function triggerRewardedAdForTask(btn, reward) {
+            triggerRewardedAdForHint();
+            setTimeout(() => {
+                completeTask(btn, reward);
+            }, 3200);
+        }
+
+        function copyInviteLink() {
+            triggerHaptic('light');
+            const input = document.getElementById('refLinkInput');
+            input.select();
+            document.execCommand('copy');
+            if (tg && tg.showAlert) {
+                tg.showAlert("Invite link copied to clipboard!");
+            } else {
+                alert("Invite link copied!");
+            }
+        }
+
+        function shareInviteLink() {
+            triggerHaptic('medium');
+            const url = encodeURIComponent(document.getElementById('refLinkInput').value);
+            const text = encodeURIComponent("Join me on IQ Slide Puzzle and get 2,500 bonus coins!");
+            window.open(`https://t.me/share/url?url=${url}&text=${text}`, '_blank');
+        }
+
+        window.onload = function() {
+            initUser();
+            initBoard();
+        };
+    </script>
+</body>
+</html>
